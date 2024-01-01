@@ -1,6 +1,6 @@
 import torch
 import argparse
-from model import ZubyNetV3
+from model import ZubyNetV3, CNNModel1
 from data_loader import CustomImageDataset
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
@@ -27,28 +27,32 @@ class Train():
 
         self.device = torch.device('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.model = ZubyNetV3(3, 3, 1).to(self.device)
+        #self.model = ZubyNetV3(3, 3, 1).to(self.device)
+
+        self.model = CNNModel1(512, 256, 0.1).to(self.device)
 
         self.learning_rate = config.learning_rate
 
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate)
+        self.bs = config.bs
+
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        self.train_set = CustomImageDataset('/Users/atabeyunlu/zubynetv3/data/final_dataset/train_data.csv', 
-                                               '/Users/atabeyunlu/zubynetv3/data/final_dataset/images', transform=None, target_transform=None)
+        self.train_set = CustomImageDataset('/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/train_data.csv', 
+                                               '/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/images', transform=None, target_transform=None)
 
-        self.val_set = CustomImageDataset('/Users/atabeyunlu/zubynetv3/data/final_dataset/val_data.csv', 
-                                             '/Users/atabeyunlu/zubynetv3/data/final_dataset/images', transform=None, target_transform=None)
+        self.val_set = CustomImageDataset('/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/val_data.csv', 
+                                             '/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/images', transform=None, target_transform=None)
 
-        self.test_set = CustomImageDataset('/Users/atabeyunlu/zubynetv3/data/final_dataset/test_data.csv', 
-                                              '/Users/atabeyunlu/zubynetv3/data/final_dataset/images', transform=None, target_transform=None)
+        self.test_set = CustomImageDataset('/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/test_data.csv', 
+                                              '/Users/atabeyunlu/ZubyNet-PyTorch/data/final_dataset/images', transform=None, target_transform=None)
         
-        self.train_loader = DataLoader(self.train_set, batch_size=128, shuffle=True)
+        self.train_loader = DataLoader(self.train_set, batch_size=self.bs, shuffle=True)
 
-        self.val_loader = DataLoader(self.val_set, batch_size=128, shuffle=True)
+        self.val_loader = DataLoader(self.val_set, batch_size=self.bs, shuffle=True)
 
-        self.test_loader = DataLoader(self.test_set, batch_size=128, shuffle=True)
+        self.test_loader = DataLoader(self.test_set, batch_size=self.bs, shuffle=True)
 
         self.epochs = config.epochs
 
@@ -84,14 +88,14 @@ class Train():
             mode = 'online' if self.online else 'offline'
         else:
             mode = 'disabled'
-        kwargs = {'name': "ZubyNetV3", 'project': 'ZubyNetV3', 'config': config,
+        kwargs = {'name': "CNNModel1", 'project': 'ZubyNetV3', 'config': config,
                 'settings': wandb.Settings(_disable_stats=True), 'reinit': True, 'mode': mode, 'save_code': True}
         wandb.init(**kwargs)
 
 
         self.start_time = time.time()
         self.model.train()
-        self.print_network(self.model, "ZubyNetV3", "/Users/atabeyunlu/zubynetv3/saved_model")
+        self.print_network(self.model, "ZubyNetV3", "/Users/atabeyunlu/ZubyNet-PyTorch/saved_model")
         for epoch in range(self.epochs):
             wandb.log({"epoch": epoch+1})
             for i, (images, labels) in enumerate(self.train_loader):
@@ -104,7 +108,7 @@ class Train():
                 self.optimizer.zero_grad()
                 
                 outputs = self.model(images)
-            
+                
                 loss = self.criterion(outputs, labels_onehot)
  
                 loss.backward()
@@ -128,7 +132,7 @@ class Train():
             if (epoch + 1) % 1 == 0:
                 self.validation()
             #self.test()
-        torch.save(self.model.state_dict(), "/Users/atabeyunlu/zubynetv3/saved_model/ZubyNetV3_epoch_{}_lr_{}.pt".format(epoch,self.learning_rate))
+        torch.save(self.model.state_dict(), "/Users/atabeyunlu/ZubyNet-PyTorch/saved_model/cnn1_epoch_{}_lr_{}.pt".format(epoch,self.learning_rate))
                        
     def test(self):
         self.model.eval()
@@ -169,8 +173,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--learning_rate', type=float, default=3e-4, help='learning rate')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning rate')
     parser.add_argument('--epochs', type=int, default=20, help='number of epochs')
+    parser.add_argument('--bs', type=int, default=16, help='batch size')
 
 
     config = parser.parse_args()
